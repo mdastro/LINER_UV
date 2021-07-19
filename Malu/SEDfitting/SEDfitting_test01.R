@@ -114,3 +114,16 @@ LDout = LaplacesDemon(Model=ProSpectSEDlike, Data=Data,  Initial.Values=inpar,
 set.seed(1)
 Data$fit = 'optim'
 optout = optim(par=inpar, fn=ProSpectSEDlike, Data=Data, method = 'BFGS')
+
+set.seed(1)
+library(cmaeshpc)
+Data$fit = 'CMA'
+#CMA is pretty tolerant of terrible initial guesses, unlike optim and LD.
+badpar = (Data$intervals$lo + Data$intervals$hi) / 2 
+CMAout = cmaeshpc(par=badpar, fn=ProSpectSEDlike, Data=Data, lower=Data$intervals$lo,
+                  upper=Data$intervals$hi, control=list(trace=TRUE, maxwalltime=2))
+print(CMAout$par)
+
+
+magplot(flux_input$pivwave, LDout$Monitor[1,4:23], type='l', log='xy', grid=TRUE, 
+        xlab="Wavelength (Ang)", ylab='Flux Density / Jy')
