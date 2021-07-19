@@ -1,29 +1,28 @@
-# Libraries
+# Libraries---------------------------------------------------------------------
 library(ProSpect)
 library(LaplacesDemon)
 library(foreach)
 library(celestial)
 library(magicaxis)
+library(cmaeshpc)
+require(reshape2)
 
-# Libraries and other fitting parameters
+# Libraries and other fitting parameters----------------------------------------
 emiles   <- data("EMILES")
 dale     <- data("Dale_NormTot")
 wl_pivot <- data("pivwave")
 
-# Selecting the filters that I will use
+# Selecting the filters that I will use-----------------------------------------
 filters = c('FUV_GALEX', 'NUV_GALEX', 'u_SDSS', 'g_SDSS', 'r_SDSS', 'i_SDSS', 
-            'z_SDSS', 
-            #'Z_VISTA', 
-            'Y_VISTA', 'J_VISTA', 'H_VISTA', 'K_VISTA', 
-            'W1_WISE' , 'W2_WISE', 'W3_WISE', 'W4_WISE', 'P100_Herschel', 
-            'P160_Herschel', 'S250_Herschel' , 'S350_Herschel', 'S500_Herschel')
+            'z_SDSS', 'Y_VISTA', 'J_VISTA', 'H_VISTA', 'K_VISTA', 
+            'W1_WISE' , 'W2_WISE')
 
 filtout=foreach(i = filters)%do%{approxfun(getfilt(i))}
 print(filtout)
 
 temppiv=pivwave[pivwave$filter %in% filters,]
 
-# Setting fit parameters
+# Setting fit parameters--------------------------------------------------------
 agemax=13.3e9-cosdistTravelTime(z=redshift, H0 = 67.8, OmegaM = 0.308)*1e9
 
 print(agemax/10e9)
@@ -38,7 +37,8 @@ inpar=c(mSFR = 0,            #log-space
         alpha_SF_screen = 3
 )
 
-# Let's plot the SFH with the following Prospect plot method
+# Let's plot the SFH with the following Prospect plot method--------------------
+## Creating a function for this plot- - - - - - - - - - - - - - - - - - - - - - 
 plotSFH=function(par, agemax=13.3, add=FALSE, col='black', ylim=NULL,...){
   magcurve(massfunc_snorm_trunc(age=x, 
                                 mSFR=10^par[1], 
@@ -50,6 +50,7 @@ plotSFH=function(par, agemax=13.3, add=FALSE, col='black', ylim=NULL,...){
            ylab='SFR (Msol / Yr)',...)
 }
 
+## Actually plotting the SFH- - - - - - - - - - - - - - - - - - - - - - - - - - 
 plotSFH(inpar)
 
 genSED=ProSpectSED(massfunc=massfunc_snorm_trunc,
@@ -69,13 +70,21 @@ genSED=ProSpectSED(massfunc=massfunc_snorm_trunc,
                    agemax=agemax
 )
 
+# Setting the data--------------------------------------------------------------
 one_galaxy = 
   read.csv('/home/mlldantas/Projects/LINER_UV/Data/SEDfitTest/one_galaxy.csv')
 
-print(one_galaxy)
+new_galaxy = one_galaxy[c(1:13),]
+
+print(new_galaxy)
 
 flux_input=data.frame(filter=temppiv$filter, pivwave=temppiv$pivwave, 
-                      flux=one_galaxy$fluxes, fluxerr=one_galaxy$errors)
+                      flux=new_galaxy$fluxes, fluxerr=new_galaxy$errors)
+for(i in temppiv$filter){
+  print(i)
+}
+
+print(temppiv$filter)
 print(flux_input)
 
 LumDist_Mpc = cosdistLumDist(z=0.1, H0 = 67.8, OmegaM = 0.308)
@@ -106,6 +115,7 @@ Data=list(flux=flux_input,
           verbose=FALSE
 )
 
+# Running the fit!
 set.seed(1)
 LDout = LaplacesDemon(Model=ProSpectSEDlike, Data=Data,  Initial.Values=inpar,
                       control=list(abstol=0.1), Iterations=1e4, 
@@ -116,14 +126,35 @@ Data$fit = 'optim'
 optout = optim(par=inpar, fn=ProSpectSEDlike, Data=Data, method = 'BFGS')
 
 set.seed(1)
-library(cmaeshpc)
 Data$fit = 'CMA'
 #CMA is pretty tolerant of terrible initial guesses, unlike optim and LD.
 badpar = (Data$intervals$lo + Data$intervals$hi) / 2 
-CMAout = cmaeshpc(par=badpar, fn=ProSpectSEDlike, Data=Data, lower=Data$intervals$lo,
-                  upper=Data$intervals$hi, control=list(trace=TRUE, maxwalltime=2))
+CMAout = cmaeshpc(par=badpar, fn=ProSpectSEDlike, Data=Data, 
+                  lower=Data$intervals$lo,
+                  upper=Data$intervals$hi, 
+                  control=list(trace=TRUE, maxwalltime=2))
 print(CMAout$par)
 
 
 magplot(flux_input$pivwave, LDout$Monitor[1,4:23], type='l', log='xy', grid=TRUE, 
         xlab="Wavelength (Ang)", ylab='Flux Density / Jy')
+
+maghist(LDout$Monitor[,"masstot"], verbose = FALSE, xlab='Stellar Mass / Msol', 
+        ylab='PDF')
+abline(v=genSED$Stars$masstot, col='red')
+
+# Plotting the fitting results--------------------------------------------------
+magplot(flux_input$pivwave, LDout$Monitor[1,4:23], type='l', log='xy', grid=TRUE,
+        xlab="Wavelength (Ang)", ylab='Flux Density / Jy', 
+        #xlim=c(1e3,1e7), ylim=c(1e-7,1e-1)
+        )
+
+for(i in 2:1e4){
+  lines(flux_input$pivwave, LDout$Monitor[i,4:23], col=hsv(alpha=0.1))
+} # plotting all the 10^4 results!!
+
+points(flux_input[,c("pivwave","flux")])
+magerr(flux_input$pivwave, flux_input$flux, ylo=flux_input$fluxerr)
+
+colvec=hsv(h=magmap(EMILES$Age,lo=1e6,hi=1e10,range=c(0,2/3), stretch = 'log', 
+                    flip=T, type='num', bad=2/3)$map, v=0.7, alpha=0.5)
