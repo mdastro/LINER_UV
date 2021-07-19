@@ -136,25 +136,28 @@ CMAout = cmaeshpc(par=badpar, fn=ProSpectSEDlike, Data=Data,
 print(CMAout$par)
 
 
-magplot(flux_input$pivwave, LDout$Monitor[1,4:23], type='l', log='xy', grid=TRUE, 
-        xlab="Wavelength (Ang)", ylab='Flux Density / Jy')
+magplot(flux_input$pivwave, LDout$Monitor[1,4:16], type='l', log='xy', grid=TRUE, 
+        xlab="Wavelength (Ang)", ylab='Flux Density / Jy', xlim=c(1e3,1e5), ylim=c(1e-7,1e-1))
 
 maghist(LDout$Monitor[,"masstot"], verbose = FALSE, xlab='Stellar Mass / Msol', 
         ylab='PDF')
 abline(v=genSED$Stars$masstot, col='red')
 
 # Plotting the fitting results--------------------------------------------------
-magplot(flux_input$pivwave, LDout$Monitor[1,4:23], type='l', log='xy', grid=TRUE,
+magplot(flux_input$pivwave, LDout$Monitor[1,4:16], type='l', log='xy', grid=TRUE,
         xlab="Wavelength (Ang)", ylab='Flux Density / Jy', 
-        #xlim=c(1e3,1e7), ylim=c(1e-7,1e-1)
-        )
+        xlim=c(1e3,1e5), ylim=c(1e-7,1e-3)
+        ) #LDout$Monitor gives the chosen bands results (if I understood correctly)
 
 for(i in 2:1e4){
-  lines(flux_input$pivwave, LDout$Monitor[i,4:23], col=hsv(alpha=0.1))
+  lines(flux_input$pivwave, LDout$Monitor[i,4:16], col=hsv(alpha=0.01))
 } # plotting all the 10^4 results!!
 
 points(flux_input[,c("pivwave","flux")])
 magerr(flux_input$pivwave, flux_input$flux, ylo=flux_input$fluxerr)
 
-colvec=hsv(h=magmap(EMILES$Age,lo=1e6,hi=1e10,range=c(0,2/3), stretch = 'log', 
-                    flip=T, type='num', bad=2/3)$map, v=0.7, alpha=0.5)
+print(LDout$Summary1)
+print(LDout$Summary2)
+print(LDout$Summary2['mSFR'])
+print(LDout$Monitor[1,]['LP'])
+print(LDout$Monitor)
